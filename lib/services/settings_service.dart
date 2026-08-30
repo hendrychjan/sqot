@@ -6,10 +6,8 @@ import 'package:sqot/models/influx_settings.dart';
 import 'package:sqot/models/theme_settings.dart';
 
 class SettingsService extends GetxService {
-  factory SettingsService() => instance;
-
   SettingsService._();
-
+  factory SettingsService() => instance;
   static final SettingsService instance = SettingsService._();
 
   static const String _keyThemeMode = "theme_mode";

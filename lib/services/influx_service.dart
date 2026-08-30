@@ -1,25 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:sqot/models/data_point.dart';
 import 'package:sqot/services/settings_service.dart';
 
-class InfluxRecord {
-  final DateTime timestamp;
-  final Map<String, Object?> fields;
-
-  InfluxRecord(this.timestamp, this.fields);
-}
-
 class InfluxService {
-  factory InfluxService() => instance;
-
   InfluxService._();
-
+  factory InfluxService() => instance;
   static final InfluxService instance = InfluxService._();
 
   final SettingsService _settingsService = SettingsService.instance;
 
-  Future<void> writeTopic(String topic, List<InfluxRecord> payload) async {
+  Future<void> writeTopic(List<DataPoint> payload) async {
     if (!_settingsService.isInfluxSettingsComplete) {
       throw StateError('Influx settings are incomplete.');
     }
@@ -55,7 +47,7 @@ class InfluxService {
       final body = StringBuffer();
       for (final p in payload) {
         final line = _buildLineProtocol(
-          topic,
+          p.topic,
           p.fields,
           timestamp: p.timestamp,
         );
@@ -149,14 +141,6 @@ class InfluxService {
   }
 
   String _escapeTagOrFieldKey(String value) {
-    return value
-        .replaceAll(r'\', r'\\')
-        .replaceAll(' ', r'\ ')
-        .replaceAll(',', r'\,')
-        .replaceAll('=', r'\=');
-  }
-
-  String _escapeTagValue(String value) {
     return value
         .replaceAll(r'\', r'\\')
         .replaceAll(' ', r'\ ')
