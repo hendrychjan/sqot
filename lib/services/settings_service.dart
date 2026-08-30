@@ -26,25 +26,29 @@ class SettingsService extends GetxService {
     token: '',
   );
 
-  SharedPreferences? _prefs;
+  late SharedPreferences _prefs;
 
   bool _initialized = false;
 
   bool get isInitialized => _initialized;
 
+  /// Loads settigs from persistant storage
   Future<void> loadSettings() async {
+    // Load settings should only be called once, during app initialization
+    assert(!_initialized);
+
     _prefs = await SharedPreferences.getInstance();
 
-    final savedThemeMode = _prefs?.getString(_keyThemeMode);
+    final savedThemeMode = _prefs.getString(_keyThemeMode);
     final loadedThemeMode = _themeModeFromString(savedThemeMode);
     _themeSettings = ThemeSettings(mode: loadedThemeMode);
     Get.changeThemeMode(loadedThemeMode);
 
     _influxSettings = InfluxSettings(
-      url: _prefs?.getString(_keyInfluxUrl) ?? '',
-      org: _prefs?.getString(_keyInfluxOrg) ?? '',
-      bucket: _prefs?.getString(_keyInfluxBucket) ?? '',
-      token: _prefs?.getString(_keyInfluxToken) ?? '',
+      url: _prefs.getString(_keyInfluxUrl) ?? '',
+      org: _prefs.getString(_keyInfluxOrg) ?? '',
+      bucket: _prefs.getString(_keyInfluxBucket) ?? '',
+      token: _prefs.getString(_keyInfluxToken) ?? '',
     );
 
     _initialized = true;
@@ -82,36 +86,29 @@ class SettingsService extends GetxService {
     String? influxBucket,
     String? influxToken,
   }) async {
-    await _ensureLoaded();
+    assert(_initialized);
 
     if (themeMode != null && _themeSettings.mode != themeMode) {
       _themeSettings.mode = themeMode;
-      await _prefs?.setString(_keyThemeMode, _themeModeToString(themeMode));
+      await _prefs.setString(_keyThemeMode, _themeModeToString(themeMode));
       Get.changeThemeMode(themeMode);
     }
     if (influxUrl != null && _influxSettings.url != influxUrl) {
       _influxSettings.url = influxUrl;
-      await _prefs?.setString(_keyInfluxUrl, influxUrl);
+      await _prefs.setString(_keyInfluxUrl, influxUrl);
     }
     if (influxOrg != null && _influxSettings.org != influxOrg) {
       _influxSettings.org = influxOrg;
-      await _prefs?.setString(_keyInfluxOrg, influxOrg);
+      await _prefs.setString(_keyInfluxOrg, influxOrg);
     }
     if (influxBucket != null && _influxSettings.bucket != influxBucket) {
       _influxSettings.bucket = influxBucket;
-      await _prefs?.setString(_keyInfluxBucket, influxBucket);
+      await _prefs.setString(_keyInfluxBucket, influxBucket);
     }
     if (influxToken != null && _influxSettings.token != influxToken) {
       _influxSettings.token = influxToken;
-      await _prefs?.setString(_keyInfluxToken, influxToken);
+      await _prefs.setString(_keyInfluxToken, influxToken);
     }
-  }
-
-  Future<void> _ensureLoaded() async {
-    if (_initialized) {
-      return;
-    }
-    await loadSettings();
   }
 
   ThemeMode _themeModeFromString(String? value) {
