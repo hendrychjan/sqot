@@ -1,6 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqot/models/device.dart';
+import 'package:sqot/models/device_type.dart';
+import 'package:sqot/models/devices_settings.dart';
 import 'package:sqot/models/settings.dart';
 import 'package:sqot/models/influx_settings.dart';
 import 'package:sqot/models/theme_settings.dart';
@@ -15,6 +20,7 @@ class SettingsService extends GetxService {
   static const String _keyInfluxOrg = "influx_org";
   static const String _keyInfluxBucket = "influx_bucket";
   static const String _keyInfluxToken = "influx_token";
+  static const String _keyBaseDevice = "devices_";
 
   ThemeSettings _themeSettings = ThemeSettings(mode: ThemeMode.system);
   InfluxSettings _influxSettings = InfluxSettings(
@@ -23,6 +29,7 @@ class SettingsService extends GetxService {
     bucket: '',
     token: '',
   );
+  DevicesSettings _devicesSettings = DevicesSettings();
 
   late SharedPreferences _prefs;
 
@@ -49,6 +56,14 @@ class SettingsService extends GetxService {
       token: _prefs.getString(_keyInfluxToken) ?? '',
     );
 
+    _devicesSettings = DevicesSettings();
+    for (final type in DeviceType.values) {
+      final deviceRaw = _prefs.getString(_buildKeyByDeviceType(type));
+      _devicesSettings.devices[type] = deviceRaw == null
+          ? null
+          : Device.fromJson(jsonDecode(deviceRaw));
+    }
+
     _initialized = true;
   }
 
@@ -61,6 +76,7 @@ class SettingsService extends GetxService {
         bucket: _influxSettings.bucket,
         token: _influxSettings.token,
       ),
+      devicesSettings: _devicesSettings,
     );
   }
 
@@ -83,6 +99,7 @@ class SettingsService extends GetxService {
     String? influxOrg,
     String? influxBucket,
     String? influxToken,
+    (DeviceType, Device?)? newDevice,
   }) async {
     assert(_initialized);
 
@@ -107,7 +124,32 @@ class SettingsService extends GetxService {
       _influxSettings.token = influxToken;
       await _prefs.setString(_keyInfluxToken, influxToken);
     }
+    if (newDevice != null) {
+      final newDeviceType = newDevice.$1;
+      final newDeviceValue = newDevice.$2;
+      final devicePrefsKey = _buildKeyByDeviceType(newDeviceType);
+      if (newDeviceValue == null) {
+        // Removing a device
+        // Never remove nonexisting device
+        assert(_devicesSettings.devices[newDeviceType] != null);
+        await _prefs.remove(devicePrefsKey);
+        _devicesSettings.devices[newDeviceType] = null;
+      } else {
+        // Adding a device
+        // Never rewrite existing devices - remove first
+        assert(_devicesSettings.devices[newDeviceType] == null);
+
+        await _prefs.setString(
+          devicePrefsKey,
+          jsonEncode(newDeviceValue.toJson()),
+        );
+        _devicesSettings.devices[newDeviceType] = newDeviceValue;
+      }
+    }
   }
+
+  String _buildKeyByDeviceType(DeviceType deviceType) =>
+      '${_keyBaseDevice}_$deviceType';
 
   ThemeMode _themeModeFromString(String? value) {
     switch (value) {

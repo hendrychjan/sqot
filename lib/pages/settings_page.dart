@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:sqot/services/settings_service.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -36,7 +37,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _loadSettings() async {
-    await _settingsService.loadSettings();
+    if (!_settingsService.isInitialized) {
+      await _settingsService.loadSettings();
+    }
     final currentSettings = _settingsService.getCurrentSettings();
 
     _selectedThemeMode = currentSettings.themeSettings.mode;
@@ -82,12 +85,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
     await _settingsService.updateSetting(themeMode: value);
 
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Theme updated to ${_themeModeLabel(value)}')),
+    Get.snackbar(
+      "Settings updated",
+      'Theme mode set to ${_themeModeLabel(value)}.',
     );
   }
 
@@ -95,10 +95,9 @@ class _SettingsPageState extends State<SettingsPage> {
     FocusScope.of(context).unfocus();
 
     if (!_isInfluxFormComplete) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill all Influx fields before saving.'),
-        ),
+      Get.snackbar(
+        "Failed to setup Influx",
+        'Please fill in all Influx fields before saving.',
       );
       return;
     }
@@ -106,9 +105,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final uri = Uri.tryParse(_urlController.text.trim());
     final hasValidUrl = uri != null && uri.hasScheme && uri.host.isNotEmpty;
     if (!hasValidUrl) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Influx URL is not valid.')));
+      Get.snackbar("Failed to setup Influx", 'Enter a valid Influx URL.');
       return;
     }
 
@@ -123,16 +120,13 @@ class _SettingsPageState extends State<SettingsPage> {
       influxToken: _tokenController.text.trim(),
     );
 
-    if (!mounted) {
-      return;
-    }
-
     setState(() {
       _isSavingInflux = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Influx settings tested and saved.')),
+    Get.snackbar(
+      "Influx setup completed",
+      'Influx settings saved successfully.',
     );
   }
 
