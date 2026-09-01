@@ -9,6 +9,7 @@ import 'package:sqot/models/device_type.dart';
 import 'package:sqot/services/ble_service.dart';
 import 'package:sqot/services/csv_service.dart';
 import 'package:sqot/services/influx_service.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class DeviceDetailsDialog extends StatefulWidget {
   final DeviceType deviceType;
@@ -42,6 +43,7 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
   final InfluxService _influxService = InfluxService.instance;
   final CsvService _csvService = CsvService.instance;
 
+  bool _wakeLockEnabled = false;
   BleGenericMonitor? _monitor;
   bool _isMonitorLoading = false;
   String? _monitorError;
@@ -76,6 +78,7 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
   @override
   void initState() {
     super.initState();
+    _enableWakeLock();
     _initializeMonitor();
   }
 
@@ -85,7 +88,35 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
       session.subscription.cancel();
     }
     _monitor?.disconnect();
+    _disableWakeLock();
     super.dispose();
+  }
+
+  Future<void> _enableWakeLock() async {
+    if (_wakeLockEnabled) {
+      return;
+    }
+
+    try {
+      await WakelockPlus.enable();
+      _wakeLockEnabled = true;
+    } catch (_) {
+      // Ignore unsupported platforms or wake lock failures.
+    }
+  }
+
+  Future<void> _disableWakeLock() async {
+    if (!_wakeLockEnabled) {
+      return;
+    }
+
+    try {
+      await WakelockPlus.disable();
+    } catch (_) {
+      // Ignore unsupported platforms or wake lock failures.
+    } finally {
+      _wakeLockEnabled = false;
+    }
   }
 
   String _formatMetricValue(String metricName, Object? rawValue) {

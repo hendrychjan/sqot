@@ -14,7 +14,7 @@ class BleCyclingMeasurement {
   });
 
   factory BleCyclingMeasurement.fromBytes(Uint8List value) {
-    if (value.length < 1) {
+    if (value.isEmpty) {
       return const BleCyclingMeasurement(
         cumulativeWheelRevolutions: null,
         lastWheelEventTime: null,
