@@ -12,11 +12,11 @@ class BleHeartrateMonitor extends BleGenericMonitor {
   late final Stream<int> bpmStream = UniversalBle.characteristicValueStream(
     bleDevice.deviceId,
     _characteristicUuid,
-  ).map(_parseHeartRateBpm);
+  ).map(_parseHeartRateBpm).asBroadcastStream();
 
   @override
-  Stream<Map<String, String>> get metricsStream =>
-      bpmStream.map((bpm) => {'Heart rate': '$bpm bpm'});
+  Stream<Map<String, Object?>> get metricsStream =>
+      bpmStream.map((bpm) => {'Heart rate': bpm});
 
   @override
   Future<void> onStartListening() {

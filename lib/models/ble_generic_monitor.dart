@@ -19,10 +19,14 @@ abstract class BleGenericMonitor {
   bool _isListening = false;
 
   BleGenericMonitor({required this.bleDevice})
-    : batteryStream = _createBatteryStream(bleDevice.deviceId),
-      signalStrengthStream = _createSignalStrengthStream(bleDevice.deviceId);
+    : batteryStream = _createBatteryStream(
+        bleDevice.deviceId,
+      ).asBroadcastStream(),
+      signalStrengthStream = _createSignalStrengthStream(
+        bleDevice.deviceId,
+      ).asBroadcastStream();
 
-  Stream<Map<String, String>> get metricsStream;
+  Stream<Map<String, Object?>> get metricsStream;
 
   Future<void> connect() async {
     if (_isConnected) {

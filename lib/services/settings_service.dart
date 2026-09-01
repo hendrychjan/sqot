@@ -20,6 +20,7 @@ class SettingsService extends GetxService {
   static const String _keyInfluxOrg = "influx_org";
   static const String _keyInfluxBucket = "influx_bucket";
   static const String _keyInfluxToken = "influx_token";
+  static const String _keyWheelCircumference = "devices_wheel_circumference";
   static const String _keyBaseDevice = "devices_";
 
   ThemeSettings _themeSettings = ThemeSettings(mode: ThemeMode.system);
@@ -29,7 +30,9 @@ class SettingsService extends GetxService {
     bucket: '',
     token: '',
   );
-  DevicesSettings _devicesSettings = DevicesSettings();
+  DevicesSettings _devicesSettings = DevicesSettings(
+    wheelCircumference: DevicesSettings.defaultWheelCircumference,
+  );
 
   late SharedPreferences _prefs;
 
@@ -56,7 +59,11 @@ class SettingsService extends GetxService {
       token: _prefs.getString(_keyInfluxToken) ?? '',
     );
 
-    _devicesSettings = DevicesSettings();
+    _devicesSettings = DevicesSettings(
+      wheelCircumference:
+          _prefs.getInt(_keyWheelCircumference) ??
+          DevicesSettings.defaultWheelCircumference,
+    );
     for (final type in DeviceType.values) {
       final deviceRaw = _prefs.getString(_buildKeyByDeviceType(type));
       _devicesSettings.devices[type] = deviceRaw == null
@@ -99,6 +106,7 @@ class SettingsService extends GetxService {
     String? influxOrg,
     String? influxBucket,
     String? influxToken,
+    int? wheelCircumference,
     (DeviceType, Device?)? newDevice,
   }) async {
     assert(_initialized);
@@ -123,6 +131,10 @@ class SettingsService extends GetxService {
     if (influxToken != null && _influxSettings.token != influxToken) {
       _influxSettings.token = influxToken;
       await _prefs.setString(_keyInfluxToken, influxToken);
+    }
+    if (wheelCircumference != null) {
+      _devicesSettings.wheelCircumference = wheelCircumference;
+      await _prefs.setInt(_keyWheelCircumference, wheelCircumference);
     }
     if (newDevice != null) {
       final newDeviceType = newDevice.$1;

@@ -11,6 +11,97 @@ class InfluxService {
 
   final SettingsService _settingsService = SettingsService.instance;
 
+  Future<void> testConnection({
+    required String url,
+    required String org,
+    required String bucket,
+    required String token,
+  }) async {
+    final influxUrl = Uri.parse(url.trim());
+    final trimmedOrg = org.trim();
+    final trimmedBucket = bucket.trim();
+    final trimmedToken = token.trim();
+
+    if (trimmedOrg.isEmpty || trimmedBucket.isEmpty || trimmedToken.isEmpty) {
+      throw StateError('Influx URL, org, bucket, and token are required.');
+    }
+
+    final client = HttpClient();
+
+    try {
+      final healthUri = influxUrl.replace(
+        path: _joinPath(influxUrl.path, '/health'),
+      );
+      final healthRequest = await client.getUrl(healthUri);
+      healthRequest.headers.set(HttpHeaders.acceptHeader, 'application/json');
+
+      final healthResponse = await healthRequest.close();
+      if (healthResponse.statusCode < 200 || healthResponse.statusCode >= 300) {
+        final body = await utf8.decodeStream(healthResponse);
+        throw HttpException(
+          'Influx health check failed (${healthResponse.statusCode}): $body',
+          uri: healthUri,
+        );
+      }
+
+      await healthResponse.drain<void>();
+
+      final bucketUri = influxUrl.replace(
+        path: _joinPath(influxUrl.path, '/api/v2/buckets'),
+        queryParameters: {
+          'name': trimmedBucket,
+          'org': trimmedOrg,
+          'limit': '1',
+        },
+      );
+
+      final bucketRequest = await client.getUrl(bucketUri);
+      bucketRequest.headers.set(
+        HttpHeaders.authorizationHeader,
+        'Token $trimmedToken',
+      );
+      bucketRequest.headers.set(HttpHeaders.acceptHeader, 'application/json');
+
+      final bucketResponse = await bucketRequest.close();
+      final bucketResponseBody = await utf8.decodeStream(bucketResponse);
+
+      if (bucketResponse.statusCode == HttpStatus.unauthorized ||
+          bucketResponse.statusCode == HttpStatus.forbidden) {
+        throw HttpException(
+          'Influx authentication failed (${bucketResponse.statusCode}).',
+          uri: bucketUri,
+        );
+      }
+
+      if (bucketResponse.statusCode < 200 || bucketResponse.statusCode >= 300) {
+        throw HttpException(
+          'Influx bucket lookup failed (${bucketResponse.statusCode}): $bucketResponseBody',
+          uri: bucketUri,
+        );
+      }
+
+      final decoded = jsonDecode(bucketResponseBody);
+      final buckets = decoded is Map<String, dynamic>
+          ? decoded['buckets'] as List<dynamic>?
+          : null;
+
+      final hasTargetBucket =
+          buckets?.whereType<Map<String, dynamic>>().any((entry) {
+            final bucketName = entry['name']?.toString();
+            return bucketName == trimmedBucket;
+          }) ??
+          false;
+
+      if (!hasTargetBucket) {
+        throw StateError(
+          'Bucket "$trimmedBucket" was not found for org "$trimmedOrg".',
+        );
+      }
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   Future<void> writeTopic(List<DataPoint> payload) async {
     if (!_settingsService.isInfluxSettingsComplete) {
       throw StateError('Influx settings are incomplete.');

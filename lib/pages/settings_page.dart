@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sqot/services/influx_service.dart';
 import 'package:sqot/services/settings_service.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -11,11 +12,14 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final SettingsService _settingsService = SettingsService.instance;
+  final InfluxService _influxService = InfluxService.instance;
 
   final TextEditingController _urlController = TextEditingController();
   final TextEditingController _orgController = TextEditingController();
   final TextEditingController _bucketController = TextEditingController();
   final TextEditingController _tokenController = TextEditingController();
+  final TextEditingController _wheelCircumferenceController =
+      TextEditingController();
 
   bool _isLoading = true;
   bool _isSavingInflux = false;
@@ -33,6 +37,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _orgController.dispose();
     _bucketController.dispose();
     _tokenController.dispose();
+    _wheelCircumferenceController.dispose();
     super.dispose();
   }
 
@@ -47,6 +52,10 @@ class _SettingsPageState extends State<SettingsPage> {
     _orgController.text = currentSettings.influxSettings.org;
     _bucketController.text = currentSettings.influxSettings.bucket;
     _tokenController.text = currentSettings.influxSettings.token;
+    _wheelCircumferenceController.text = currentSettings
+        .devicesSettings
+        .wheelCircumference
+        .toString();
 
     if (!mounted) {
       return;
@@ -74,10 +83,16 @@ class _SettingsPageState extends State<SettingsPage> {
         : Theme.of(context).colorScheme.error;
   }
 
+  void _clearFocus() {
+    FocusScope.of(context).unfocus();
+  }
+
   Future<void> _updateThemeMode(ThemeMode? value) async {
     if (value == null) {
       return;
     }
+
+    _clearFocus();
 
     setState(() {
       _selectedThemeMode = value;
@@ -92,6 +107,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _testAndSaveInfluxSettings() async {
+    _clearFocus();
     FocusScope.of(context).unfocus();
 
     if (!_isInfluxFormComplete) {
@@ -109,24 +125,78 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
+    final influxUrl = _urlController.text.trim();
+    final influxOrg = _orgController.text.trim();
+    final influxBucket = _bucketController.text.trim();
+    final influxToken = _tokenController.text.trim();
+
     setState(() {
       _isSavingInflux = true;
     });
 
-    await _settingsService.updateSetting(
-      influxUrl: _urlController.text.trim(),
-      influxOrg: _orgController.text.trim(),
-      influxBucket: _bucketController.text.trim(),
-      influxToken: _tokenController.text.trim(),
-    );
+    try {
+      await _influxService.testConnection(
+        url: influxUrl,
+        org: influxOrg,
+        bucket: influxBucket,
+        token: influxToken,
+      );
 
-    setState(() {
-      _isSavingInflux = false;
-    });
+      await _settingsService.updateSetting(
+        influxUrl: influxUrl,
+        influxOrg: influxOrg,
+        influxBucket: influxBucket,
+        influxToken: influxToken,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSavingInflux = false;
+      });
+
+      Get.snackbar(
+        "Influx setup completed",
+        'Connection successful. Influx settings saved.',
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSavingInflux = false;
+      });
+
+      Get.snackbar("Failed to setup Influx", e.toString());
+    }
+  }
+
+  Future<void> _saveWheelCircumference() async {
+    _clearFocus();
+
+    final rawValue = _wheelCircumferenceController.text.trim();
+    final parsedValue = int.tryParse(rawValue);
+
+    if (parsedValue == null || parsedValue <= 0) {
+      Get.snackbar(
+        'Invalid wheel circumference',
+        'Please enter a positive integer value in millimeters.',
+      );
+      return;
+    }
+
+    await _settingsService.updateSetting(wheelCircumference: parsedValue);
+
+    if (!mounted) {
+      return;
+    }
 
     Get.snackbar(
-      "Influx setup completed",
-      'Influx settings saved successfully.',
+      'Devices settings updated',
+      'Wheel circumference saved as $parsedValue mm.',
     );
   }
 
@@ -152,11 +222,13 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildThemeSection() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: colorScheme.surfaceContainerLow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,7 +236,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSectionTitle('Theme'),
           const SizedBox(height: 12),
           DropdownButtonFormField<ThemeMode>(
-            value: _selectedThemeMode,
+            initialValue: _selectedThemeMode,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'Theme mode',
@@ -182,11 +254,13 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildInfluxSection() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        color: colorScheme.surfaceContainerLow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,6 +286,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 12),
           TextField(
             controller: _urlController,
+            onTapOutside: (_) => _clearFocus(),
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'Influx URL',
@@ -222,6 +297,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 12),
           TextField(
             controller: _orgController,
+            onTapOutside: (_) => _clearFocus(),
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'Organization',
@@ -231,6 +307,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 12),
           TextField(
             controller: _bucketController,
+            onTapOutside: (_) => _clearFocus(),
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'Bucket',
@@ -241,6 +318,7 @@ class _SettingsPageState extends State<SettingsPage> {
           TextField(
             controller: _tokenController,
             obscureText: true,
+            onTapOutside: (_) => _clearFocus(),
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'Token',
@@ -267,6 +345,45 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildDevicesSection() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: colorScheme.surfaceContainerLow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('Devices'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _wheelCircumferenceController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: false),
+            onTapOutside: (_) => _clearFocus(),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: 'Wheel circumference (mm)',
+              hintText: 'e.g. 2105',
+              helperText: 'Use the tire circumference in millimeters',
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _saveWheelCircumference,
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Save wheel circumference'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -277,6 +394,8 @@ class _SettingsPageState extends State<SettingsPage> {
       padding: const EdgeInsets.all(16),
       children: [
         _buildThemeSection(),
+        const SizedBox(height: 16),
+        _buildDevicesSection(),
         const SizedBox(height: 16),
         _buildInfluxSection(),
       ],

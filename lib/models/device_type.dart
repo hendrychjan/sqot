@@ -25,6 +25,17 @@ extension XDeviceType on DeviceType {
     }
   }
 
+  String get topic {
+    switch (this) {
+      case DeviceType.heartRateMonitor:
+        return 'heart_rate';
+      case DeviceType.cyclingSpeedMonitor:
+        return 'cycling';
+      case DeviceType.cyclingCadenceMonitor:
+        return 'cycling';
+    }
+  }
+
   String get serviceGuid {
     switch (this) {
       case DeviceType.heartRateMonitor:

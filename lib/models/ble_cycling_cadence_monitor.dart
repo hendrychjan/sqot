@@ -8,11 +8,12 @@ class BleCyclingCadenceMonitor extends BleGenericMonitor {
 
   BleCyclingCadenceMonitor({required super.bleDevice});
 
-  late final Stream<int> cadenceRpmStream = _buildCadenceStream();
+  late final Stream<int> cadenceRpmStream = _buildCadenceStream()
+      .asBroadcastStream();
 
   @override
-  Stream<Map<String, String>> get metricsStream =>
-      cadenceRpmStream.map((rpm) => {'Cadence': '$rpm rpm'});
+  Stream<Map<String, Object?>> get metricsStream =>
+      cadenceRpmStream.map((rpm) => {'Cadence': rpm});
 
   @override
   Future<void> onStartListening() {
