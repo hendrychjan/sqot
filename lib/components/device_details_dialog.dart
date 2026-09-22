@@ -121,6 +121,7 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
         ],
       BleCyclingSpeedMonitor(
         :final speedKphStream,
+        :final distanceKmStream,
         :final maxSpeedKphStream,
         :final averageSpeedKphStream,
         :final windowAverageSpeedKphStream,
@@ -141,6 +142,14 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
             stream: maxSpeedKphStream,
             valueFormatter: (value) =>
                 _formatNumericMetric(value, decimals: 1, unit: 'km/h'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Distance',
+            label: 'Distance',
+            icon: Icons.route_outlined,
+            stream: distanceKmStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 2, unit: 'km'),
           ),
           _MetricSeriesDescriptor(
             sourceId: 'Speed average',

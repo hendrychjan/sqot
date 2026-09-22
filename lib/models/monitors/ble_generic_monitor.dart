@@ -19,6 +19,9 @@ abstract class BleGenericMonitor {
   bool _isConnected = false;
   bool _isListening = false;
 
+  bool get isConnected => _isConnected;
+  bool get isListening => _isListening;
+
   BleGenericMonitor({required this.bleDevice})
     : batteryStream = _createBatteryStream(
         bleDevice.deviceId,

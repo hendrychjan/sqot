@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sqot/components/shortcut_card.dart';
+import 'package:sqot/models/training_type.dart';
 import 'package:sqot/pages/doctor_appointments_page.dart';
 import 'package:sqot/pages/devices_page.dart';
 import 'package:sqot/pages/health_indicators_diary_page.dart';
@@ -8,6 +9,7 @@ import 'package:sqot/pages/session_page.dart';
 import 'package:sqot/pages/settings_page.dart';
 import 'package:sqot/pages/stats_page.dart';
 import 'package:sqot/pages/womens_cycle_page.dart';
+import 'package:sqot/services/settings_service.dart';
 
 enum _MainSection {
   home,
@@ -271,7 +273,7 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
-enum _TrainingSection { session, stats }
+enum _TrainingSection { session, stats, trainingTypes }
 
 extension _TrainingSectionX on _TrainingSection {
   String get title {
@@ -280,6 +282,8 @@ extension _TrainingSectionX on _TrainingSection {
         return 'Session';
       case _TrainingSection.stats:
         return 'Stats';
+      case _TrainingSection.trainingTypes:
+        return 'Training types';
     }
   }
 
@@ -289,6 +293,8 @@ extension _TrainingSectionX on _TrainingSection {
         return Icons.directions_bike_outlined;
       case _TrainingSection.stats:
         return Icons.bar_chart_outlined;
+      case _TrainingSection.trainingTypes:
+        return Icons.category_outlined;
     }
   }
 }
@@ -301,7 +307,17 @@ class TrainingPage extends StatefulWidget {
 }
 
 class _TrainingPageState extends State<TrainingPage> {
+  final SettingsService _settingsService = SettingsService.instance;
+
   _TrainingSection _currentSection = _TrainingSection.session;
+  bool _isTrainingTypesLoading = true;
+  List<TrainingType> _trainingTypes = <TrainingType>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTrainingTypes();
+  }
 
   void _activateSection(_TrainingSection section) {
     setState(() {
@@ -311,13 +327,358 @@ class _TrainingPageState extends State<TrainingPage> {
 
   int get _currentIndex => _TrainingSection.values.indexOf(_currentSection);
 
+  Future<void> _loadTrainingTypes() async {
+    if (!_settingsService.isInitialized) {
+      await _settingsService.loadSettings();
+    }
+
+    final settings = _settingsService.getCurrentSettings();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _trainingTypes = settings.trainingTypes;
+      _isTrainingTypesLoading = false;
+    });
+  }
+
+  Future<void> _showAddTrainingTypeDialog() async {
+    final titleController = TextEditingController();
+    bool usesHeartrateMonitor = false;
+    bool usesCyclingSpeedMonitor = false;
+    bool usesCyclingCadenceMonitor = false;
+    String? titleError;
+
+    final createdType = await showDialog<TrainingType>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add training type'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        labelText: 'Title',
+                        hintText: 'e.g. Intervals',
+                        errorText: titleError,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      value: usesHeartrateMonitor,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Use heartrate monitor'),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          usesHeartrateMonitor = value;
+                        });
+                      },
+                    ),
+                    SwitchListTile(
+                      value: usesCyclingSpeedMonitor,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Use cycling speed monitor'),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          usesCyclingSpeedMonitor = value;
+                        });
+                      },
+                    ),
+                    SwitchListTile(
+                      value: usesCyclingCadenceMonitor,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Use cycling cadence monitor'),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          usesCyclingCadenceMonitor = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final title = titleController.text.trim();
+                    if (title.isEmpty) {
+                      setDialogState(() {
+                        titleError = 'Title is required.';
+                      });
+                      return;
+                    }
+
+                    Navigator.of(context).pop(
+                      TrainingType(
+                        id: DateTime.now().microsecondsSinceEpoch.toString(),
+                        title: title,
+                        usesHeartrateMonitor: usesHeartrateMonitor,
+                        usesCyclingSpeedMonitor: usesCyclingSpeedMonitor,
+                        usesCyclingCadenceMonitor: usesCyclingCadenceMonitor,
+                      ),
+                    );
+                  },
+                  child: const Text('Add'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    titleController.dispose();
+
+    if (createdType == null) {
+      return;
+    }
+
+    await _settingsService.updateSetting(newTrainingType: createdType);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _trainingTypes = [..._trainingTypes, createdType];
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Training type "${createdType.title}" added.')),
+    );
+  }
+
+  Future<void> _renameTrainingType(TrainingType trainingType) async {
+    final controller = TextEditingController(text: trainingType.title);
+    String? titleError;
+
+    final updatedTitle = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Rename training type'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: 'Title',
+                  errorText: titleError,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final value = controller.text.trim();
+                    if (value.isEmpty) {
+                      setDialogState(() {
+                        titleError = 'Title is required.';
+                      });
+                      return;
+                    }
+                    Navigator.of(context).pop(value);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (updatedTitle == null || updatedTitle == trainingType.title) {
+      return;
+    }
+
+    final updatedTrainingType = TrainingType(
+      id: trainingType.id,
+      title: updatedTitle,
+      usesHeartrateMonitor: trainingType.usesHeartrateMonitor,
+      usesCyclingSpeedMonitor: trainingType.usesCyclingSpeedMonitor,
+      usesCyclingCadenceMonitor: trainingType.usesCyclingCadenceMonitor,
+    );
+
+    await _settingsService.updateTrainingType(updatedTrainingType);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _trainingTypes = _trainingTypes.map((type) {
+        return type.id == updatedTrainingType.id ? updatedTrainingType : type;
+      }).toList();
+    });
+  }
+
+  Future<void> _deleteTrainingType(TrainingType trainingType) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete training type'),
+          content: Text('Delete "${trainingType.title}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await _settingsService.deleteTrainingType(trainingType.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _trainingTypes = _trainingTypes
+          .where((type) => type.id != trainingType.id)
+          .toList();
+    });
+  }
+
+  List<String> _buildMonitorTags(TrainingType trainingType) {
+    final tags = <String>[];
+    if (trainingType.usesHeartrateMonitor) {
+      tags.add('Heartrate');
+    }
+    if (trainingType.usesCyclingSpeedMonitor) {
+      tags.add('Speed');
+    }
+    if (trainingType.usesCyclingCadenceMonitor) {
+      tags.add('Cadence');
+    }
+    if (tags.isEmpty) {
+      tags.add('No monitors');
+    }
+    return tags;
+  }
+
+  Widget _buildTrainingTypesPage(BuildContext context) {
+    if (_isTrainingTypesLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_trainingTypes.isEmpty) {
+      return Center(
+        child: Text(
+          'No training types yet. Tap + to add one.',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+      );
+    }
+
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: _trainingTypes.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final trainingType = _trainingTypes[index];
+        final tags = _buildMonitorTags(trainingType);
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: colorScheme.surfaceContainerLow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                trainingType.title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'rename':
+                        _renameTrainingType(trainingType);
+                        break;
+                      case 'delete':
+                        _deleteTrainingType(trainingType);
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'rename', child: Text('Rename')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final tag in tags)
+                    Chip(
+                      label: Text(tag),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: const [SessionPage(), StatsPage()],
+        children: [
+          const SessionPage(),
+          const StatsPage(),
+          _buildTrainingTypesPage(context),
+        ],
       ),
+      floatingActionButton: _currentSection == _TrainingSection.trainingTypes
+          ? FloatingActionButton(
+              onPressed: _showAddTrainingTypeDialog,
+              child: const Icon(Icons.add),
+            )
+          : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {

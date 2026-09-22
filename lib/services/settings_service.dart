@@ -9,6 +9,8 @@ import 'package:sqot/models/settings/devices_settings.dart';
 import 'package:sqot/models/settings/settings.dart';
 import 'package:sqot/models/settings/influx_settings.dart';
 import 'package:sqot/models/settings/theme_settings.dart';
+import 'package:sqot/models/training_session.dart';
+import 'package:sqot/models/training_type.dart';
 
 class SettingsService extends GetxService {
   SettingsService._();
@@ -23,6 +25,8 @@ class SettingsService extends GetxService {
   static const String _keyWheelCircumference = "devices_wheel_circumference";
   static const String _keyStatisticsWindowMinutes =
       "devices_statistics_window_minutes";
+  static const String _keyTrainingTypes = "training_types";
+  static const String _keySavedSessions = "saved_training_sessions";
   static const String _keyBaseDevice = "devices_";
 
   ThemeSettings _themeSettings = ThemeSettings(mode: ThemeMode.system);
@@ -36,6 +40,7 @@ class SettingsService extends GetxService {
     wheelCircumference: DevicesSettings.defaultWheelCircumference,
     statisticsWindowMinutes: DevicesSettings.defaultStatisticsWindowMinutes,
   );
+  List<TrainingType> _trainingTypes = <TrainingType>[];
 
   late SharedPreferences _prefs;
 
@@ -77,6 +82,11 @@ class SettingsService extends GetxService {
           : Device.fromJson(jsonDecode(deviceRaw));
     }
 
+    final savedTrainingTypes = _prefs.getStringList(_keyTrainingTypes);
+    _trainingTypes = (savedTrainingTypes ?? <String>[])
+        .map((rawType) => TrainingType.fromJson(jsonDecode(rawType)))
+        .toList();
+
     _initialized = true;
   }
 
@@ -90,6 +100,9 @@ class SettingsService extends GetxService {
         token: _influxSettings.token,
       ),
       devicesSettings: _devicesSettings,
+      trainingTypes: _trainingTypes
+          .map((type) => TrainingType.fromJson(type.toJson()))
+          .toList(),
     );
   }
 
@@ -114,6 +127,7 @@ class SettingsService extends GetxService {
     String? influxToken,
     int? wheelCircumference,
     int? statisticsWindowMinutes,
+    TrainingType? newTrainingType,
     (DeviceType, Device?)? newDevice,
   }) async {
     assert(_initialized);
@@ -147,6 +161,13 @@ class SettingsService extends GetxService {
       _devicesSettings.statisticsWindowMinutes = statisticsWindowMinutes;
       await _prefs.setInt(_keyStatisticsWindowMinutes, statisticsWindowMinutes);
     }
+    if (newTrainingType != null) {
+      _trainingTypes.add(newTrainingType);
+      await _prefs.setStringList(
+        _keyTrainingTypes,
+        _trainingTypes.map((type) => jsonEncode(type.toJson())).toList(),
+      );
+    }
     if (newDevice != null) {
       final newDeviceType = newDevice.$1;
       final newDeviceValue = newDevice.$2;
@@ -169,6 +190,80 @@ class SettingsService extends GetxService {
         _devicesSettings.devices[newDeviceType] = newDeviceValue;
       }
     }
+  }
+
+  Future<void> saveTrainingSession(TrainingSession session) async {
+    assert(_initialized);
+
+    final sessions = _prefs.getStringList(_keySavedSessions) ?? <String>[];
+    sessions.add(jsonEncode(session.toJson()));
+    await _prefs.setStringList(_keySavedSessions, sessions);
+  }
+
+  Future<void> updateTrainingType(TrainingType updatedTrainingType) async {
+    assert(_initialized);
+
+    _trainingTypes = _trainingTypes.map((type) {
+      return type.id == updatedTrainingType.id ? updatedTrainingType : type;
+    }).toList();
+
+    await _prefs.setStringList(
+      _keyTrainingTypes,
+      _trainingTypes.map((type) => jsonEncode(type.toJson())).toList(),
+    );
+  }
+
+  Future<void> deleteTrainingType(String trainingTypeId) async {
+    assert(_initialized);
+
+    _trainingTypes = _trainingTypes
+        .where((type) => type.id != trainingTypeId)
+        .toList();
+
+    await _prefs.setStringList(
+      _keyTrainingTypes,
+      _trainingTypes.map((type) => jsonEncode(type.toJson())).toList(),
+    );
+  }
+
+  List<TrainingSession> getSavedTrainingSessions() {
+    assert(_initialized);
+
+    final rawSessions = _prefs.getStringList(_keySavedSessions) ?? <String>[];
+    return rawSessions
+        .map((rawSession) => TrainingSession.fromJson(jsonDecode(rawSession)))
+        .toList()
+        .reversed
+        .toList();
+  }
+
+  Future<void> updateTrainingSession(TrainingSession updatedSession) async {
+    assert(_initialized);
+
+    final sessions = getSavedTrainingSessions()
+        .map(
+          (session) =>
+              session.id == updatedSession.id ? updatedSession : session,
+        )
+        .toList()
+        .reversed
+        .map((session) => jsonEncode(session.toJson()))
+        .toList();
+
+    await _prefs.setStringList(_keySavedSessions, sessions);
+  }
+
+  Future<void> deleteTrainingSession(String sessionId) async {
+    assert(_initialized);
+
+    final sessions = getSavedTrainingSessions()
+        .where((session) => session.id != sessionId)
+        .toList()
+        .reversed
+        .map((session) => jsonEncode(session.toJson()))
+        .toList();
+
+    await _prefs.setStringList(_keySavedSessions, sessions);
   }
 
   String _buildKeyByDeviceType(DeviceType deviceType) =>

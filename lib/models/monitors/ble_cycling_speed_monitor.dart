@@ -15,6 +15,8 @@ class BleCyclingSpeedMonitor extends BleGenericMonitor {
 
   late final Stream<double> speedKphStream = _buildSpeedStream()
       .asBroadcastStream();
+  late final Stream<double> distanceKmStream = _buildDistanceStream()
+      .asBroadcastStream();
   late final Stream<double> maxSpeedKphStream =
       BleGenericMonitor.createRunningMaxStream(
         speedKphStream,
@@ -143,6 +145,50 @@ class BleCyclingSpeedMonitor extends BleGenericMonitor {
     controller.onCancel = () async {
       await subscription.cancel();
       watchdog.cancel();
+    };
+
+    return controller.stream;
+  }
+
+  Stream<double> _buildDistanceStream() {
+    final controller = StreamController<double>.broadcast();
+    int? initialWheelRevolutions;
+
+    final subscription =
+        UniversalBle.characteristicValueStream(
+          bleDevice.deviceId,
+          _characteristicUuid,
+        ).listen((value) {
+          final measurement = BleCyclingMeasurement.fromBytes(value);
+          final wheelRevolutions = measurement.cumulativeWheelRevolutions;
+          if (wheelRevolutions == null) {
+            return;
+          }
+
+          initialWheelRevolutions ??= wheelRevolutions;
+
+          var deltaRevolutions = wheelRevolutions - initialWheelRevolutions!;
+          if (deltaRevolutions < 0) {
+            deltaRevolutions += 0x100000000;
+          }
+
+          final wheelCircumferenceMm = _settingsService
+              .getCurrentSettings()
+              .devicesSettings
+              .wheelCircumference
+              .toDouble();
+          final distanceKm =
+              deltaRevolutions * (wheelCircumferenceMm / 1000.0) / 1000.0;
+
+          if (!distanceKm.isFinite) {
+            return;
+          }
+
+          controller.add(distanceKm);
+        });
+
+    controller.onCancel = () async {
+      await subscription.cancel();
     };
 
     return controller.stream;
