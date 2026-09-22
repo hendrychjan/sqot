@@ -1,6 +1,6 @@
-import 'package:sqot/models/devices_settings.dart';
-import 'package:sqot/models/influx_settings.dart';
-import 'package:sqot/models/theme_settings.dart';
+import 'package:sqot/models/settings/devices_settings.dart';
+import 'package:sqot/models/settings/influx_settings.dart';
+import 'package:sqot/models/settings/theme_settings.dart';
 
 class Settings {
   ThemeSettings themeSettings;

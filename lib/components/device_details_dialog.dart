@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:sqot/models/ble_generic_monitor.dart';
+import 'package:sqot/models/monitors/ble_cycling_cadence_monitor.dart';
+import 'package:sqot/models/monitors/ble_cycling_speed_monitor.dart';
+import 'package:sqot/models/monitors/ble_generic_monitor.dart';
+import 'package:sqot/models/monitors/ble_heartrate_monitor.dart';
 import 'package:sqot/models/data_point.dart';
 import 'package:sqot/models/device.dart';
 import 'package:sqot/models/device_type.dart';
@@ -61,6 +64,145 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
   bool _isRecordingSource(String sourceId) =>
       _recordingsBySource.containsKey(sourceId);
 
+  String _formatNumericMetric(
+    num value, {
+    required int decimals,
+    required String unit,
+  }) {
+    final rendered = decimals == 0
+        ? value.toInt().toString()
+        : value.toDouble().toStringAsFixed(decimals);
+    return '$rendered $unit';
+  }
+
+  List<_MetricSeriesDescriptor> _metricSeriesForMonitor(
+    BleGenericMonitor monitor,
+  ) {
+    return switch (monitor) {
+      BleHeartrateMonitor(
+        :final bpmStream,
+        :final maxBpmStream,
+        :final averageBpmStream,
+        :final windowAverageBpmStream,
+      ) =>
+        <_MetricSeriesDescriptor>[
+          _MetricSeriesDescriptor(
+            sourceId: 'Heart rate',
+            label: 'Heart rate',
+            icon: Icons.favorite_outline,
+            stream: bpmStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 0, unit: 'bpm'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Heart rate max',
+            label: 'Max heart rate',
+            icon: Icons.north_outlined,
+            stream: maxBpmStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 0, unit: 'bpm'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Heart rate average',
+            label: 'Average heart rate',
+            icon: Icons.auto_graph_outlined,
+            stream: averageBpmStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 0, unit: 'bpm'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Heart rate last window average',
+            label: 'Heart rate window average',
+            icon: Icons.timelapse_outlined,
+            stream: windowAverageBpmStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 0, unit: 'bpm'),
+          ),
+        ],
+      BleCyclingSpeedMonitor(
+        :final speedKphStream,
+        :final maxSpeedKphStream,
+        :final averageSpeedKphStream,
+        :final windowAverageSpeedKphStream,
+      ) =>
+        <_MetricSeriesDescriptor>[
+          _MetricSeriesDescriptor(
+            sourceId: 'Speed',
+            label: 'Speed',
+            icon: Icons.speed_outlined,
+            stream: speedKphStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 1, unit: 'km/h'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Speed max',
+            label: 'Max speed',
+            icon: Icons.north_outlined,
+            stream: maxSpeedKphStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 1, unit: 'km/h'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Speed average',
+            label: 'Average speed',
+            icon: Icons.auto_graph_outlined,
+            stream: averageSpeedKphStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 1, unit: 'km/h'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Speed last window average',
+            label: 'Speed window average',
+            icon: Icons.timelapse_outlined,
+            stream: windowAverageSpeedKphStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 1, unit: 'km/h'),
+          ),
+        ],
+      BleCyclingCadenceMonitor(
+        :final cadenceRpmStream,
+        :final maxCadenceRpmStream,
+        :final averageCadenceRpmStream,
+        :final windowAverageCadenceRpmStream,
+      ) =>
+        <_MetricSeriesDescriptor>[
+          _MetricSeriesDescriptor(
+            sourceId: 'Cadence',
+            label: 'Cadence',
+            icon: Icons.cyclone_outlined,
+            stream: cadenceRpmStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 0, unit: 'rpm'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Cadence max',
+            label: 'Max cadence',
+            icon: Icons.north_outlined,
+            stream: maxCadenceRpmStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 0, unit: 'rpm'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Cadence average',
+            label: 'Average cadence',
+            icon: Icons.auto_graph_outlined,
+            stream: averageCadenceRpmStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 0, unit: 'rpm'),
+          ),
+          _MetricSeriesDescriptor(
+            sourceId: 'Cadence last window average',
+            label: 'Cadence window average',
+            icon: Icons.timelapse_outlined,
+            stream: windowAverageCadenceRpmStream,
+            valueFormatter: (value) =>
+                _formatNumericMetric(value, decimals: 0, unit: 'rpm'),
+          ),
+        ],
+      _ => <_MetricSeriesDescriptor>[],
+    };
+  }
+
   String get _recordingSummary {
     if (_recordingsBySource.isEmpty) {
       return 'attribute';
@@ -117,30 +259,6 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
     } finally {
       _wakeLockEnabled = false;
     }
-  }
-
-  String _formatMetricValue(String metricName, Object? rawValue) {
-    if (rawValue == null) {
-      return 'Waiting for data...';
-    }
-
-    if (metricName == 'Speed' && rawValue is num) {
-      return '${rawValue.toDouble().toStringAsFixed(1)} km/h';
-    }
-    if (metricName == 'Heart rate' && rawValue is num) {
-      return '${rawValue.toInt()} bpm';
-    }
-    if (metricName == 'Cadence' && rawValue is num) {
-      return '${rawValue.toInt()} rpm';
-    }
-    if (metricName == 'Battery' && rawValue is num) {
-      return '${rawValue.toDouble().toStringAsFixed(0)}%';
-    }
-    if (metricName == 'Signal strength' && rawValue is num) {
-      return '${rawValue.toInt()} dBm';
-    }
-
-    return rawValue.toString();
   }
 
   DataPoint _buildRecordedDataPoint({
@@ -391,26 +509,20 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
     Get.snackbar('Recording resumed', 'Watching ${session.sourceId}');
   }
 
-  Future<void> _toggleMetricRecording(BleGenericMonitor monitor) async {
-    if (_recordingsBySource.containsKey('Metric')) {
-      await _stopRecordingAndShowOptions('Metric');
+  Future<void> _toggleStreamRecording({
+    required String sourceId,
+    required Stream<num> stream,
+  }) async {
+    if (_recordingsBySource.containsKey(sourceId)) {
+      await _stopRecordingAndShowOptions(sourceId);
       return;
     }
 
     await _startRecording(
-      sourceId: 'Metric',
-      stream: monitor.metricsStream,
+      sourceId: sourceId,
+      stream: stream.map<Object?>((sample) => sample),
       attributeNameBuilder: (sample) {
-        if (sample is Map<String, Object?> && sample.isNotEmpty) {
-          return sample.entries.first.key;
-        }
-        return 'Metric';
-      },
-      valueMapper: (sample) {
-        if (sample is Map<String, Object?> && sample.isNotEmpty) {
-          return sample.entries.first.value;
-        }
-        return sample;
+        return sourceId;
       },
     );
   }
@@ -526,37 +638,44 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
       return const SizedBox.shrink();
     }
 
+    final series = _metricSeriesForMonitor(monitor);
+
     return Column(
       children: [
-        StreamBuilder<Map<String, Object?>>(
-          stream: monitor.metricsStream,
-          builder: (context, snapshot) {
-            final data = snapshot.data;
-            final entry = (data == null || data.isEmpty)
-                ? null
-                : data.entries.first;
-
-            return _DetailTile(
-              icon: Icons.monitor_heart_outlined,
-              label: entry?.key ?? 'Metric',
-              value: entry == null
-                  ? 'Waiting for data...'
-                  : _formatMetricValue(entry.key, entry.value),
-              trailing: IconButton.filledTonal(
-                tooltip: _isRecordingSource('Metric')
-                    ? 'Stop recording'
-                    : 'Record attribute',
-                onPressed: () => _toggleMetricRecording(monitor),
-                icon: Icon(
-                  _isRecordingSource('Metric')
-                      ? Icons.stop_rounded
-                      : Icons.fiber_manual_record_rounded,
-                ),
+        ...series.map((metricSeries) {
+          return Column(
+            children: [
+              StreamBuilder<num>(
+                stream: metricSeries.stream,
+                builder: (context, snapshot) {
+                  final current = snapshot.data;
+                  return _DetailTile(
+                    icon: metricSeries.icon,
+                    label: metricSeries.label,
+                    value: current == null
+                        ? 'Waiting for data...'
+                        : metricSeries.valueFormatter(current),
+                    trailing: IconButton.filledTonal(
+                      tooltip: _isRecordingSource(metricSeries.sourceId)
+                          ? 'Stop recording'
+                          : 'Record attribute',
+                      onPressed: () => _toggleStreamRecording(
+                        sourceId: metricSeries.sourceId,
+                        stream: metricSeries.stream,
+                      ),
+                      icon: Icon(
+                        _isRecordingSource(metricSeries.sourceId)
+                            ? Icons.stop_rounded
+                            : Icons.fiber_manual_record_rounded,
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
-        const Divider(height: 1),
+              const Divider(height: 1),
+            ],
+          );
+        }),
         StreamBuilder<double>(
           stream: monitor.batteryStream,
           builder: (context, snapshot) {
@@ -775,6 +894,22 @@ class _DetailTile extends StatelessWidget {
       trailing: trailing,
     );
   }
+}
+
+class _MetricSeriesDescriptor {
+  final String sourceId;
+  final String label;
+  final IconData icon;
+  final Stream<num> stream;
+  final String Function(num) valueFormatter;
+
+  const _MetricSeriesDescriptor({
+    required this.sourceId,
+    required this.label,
+    required this.icon,
+    required this.stream,
+    required this.valueFormatter,
+  });
 }
 
 class _RecordingSession {

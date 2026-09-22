@@ -1,24 +1,38 @@
 import 'dart:async';
 
+import 'package:sqot/models/monitors/ble_generic_monitor.dart';
 import 'package:sqot/models/ble_cycling_measurement.dart';
-import 'package:sqot/models/ble_generic_monitor.dart';
 import 'package:sqot/services/settings_service.dart';
 import 'package:universal_ble/universal_ble.dart';
 
-class BleCyclingSpeedMonitor extends BleGenericMonitor {
+class BleCyclingCadenceMonitor extends BleGenericMonitor {
   static const String _serviceUuid = '1816';
   static const String _characteristicUuid = '2A5B';
 
-  BleCyclingSpeedMonitor({required super.bleDevice});
+  BleCyclingCadenceMonitor({required super.bleDevice});
 
   final SettingsService _settingsService = SettingsService.instance;
 
-  late final Stream<double> speedKphStream = _buildSpeedStream()
+  late final Stream<int> cadenceRpmStream = _buildCadenceStream()
       .asBroadcastStream();
-
-  @override
-  Stream<Map<String, Object?>> get metricsStream =>
-      speedKphStream.map((speedKph) => {'Speed': speedKph});
+  late final Stream<double> maxCadenceRpmStream =
+      BleGenericMonitor.createRunningMaxStream(
+        cadenceRpmStream,
+      ).asBroadcastStream();
+  late final Stream<double> averageCadenceRpmStream =
+      BleGenericMonitor.createRunningAverageStream(
+        cadenceRpmStream,
+      ).asBroadcastStream();
+  late final Stream<double> windowAverageCadenceRpmStream =
+      BleGenericMonitor.createWindowAverageStream(
+        cadenceRpmStream,
+        () => Duration(
+          minutes: _settingsService
+              .getCurrentSettings()
+              .devicesSettings
+              .statisticsWindowMinutes,
+        ),
+      ).asBroadcastStream();
 
   @override
   Future<void> onStartListening() {
@@ -42,10 +56,10 @@ class BleCyclingSpeedMonitor extends BleGenericMonitor {
     }
   }
 
-  Stream<double> _buildSpeedStream() {
-    final controller = StreamController<double>.broadcast();
-    int? previousWheelRevolutions;
-    int? previousWheelEventTime;
+  Stream<int> _buildCadenceStream() {
+    final controller = StreamController<int>.broadcast();
+    int? previousCrankRevolutions;
+    int? previousCrankEventTime;
     DateTime? lastValidSampleAt;
     bool lastEmittedWasZero = false;
 
@@ -55,60 +69,51 @@ class BleCyclingSpeedMonitor extends BleGenericMonitor {
           _characteristicUuid,
         ).listen((value) {
           final measurement = BleCyclingMeasurement.fromBytes(value);
-          final wheelRevolutions = measurement.cumulativeWheelRevolutions;
-          final wheelEventTime = measurement.lastWheelEventTime;
-          if (wheelRevolutions == null || wheelEventTime == null) {
+          final crankRevolutions = measurement.cumulativeCrankRevolutions;
+          final crankEventTime = measurement.lastCrankEventTime;
+          if (crankRevolutions == null || crankEventTime == null) {
             return;
           }
 
-          if (previousWheelRevolutions == null ||
-              previousWheelEventTime == null) {
-            previousWheelRevolutions = wheelRevolutions;
-            previousWheelEventTime = wheelEventTime;
+          if (previousCrankRevolutions == null ||
+              previousCrankEventTime == null) {
+            previousCrankRevolutions = crankRevolutions;
+            previousCrankEventTime = crankEventTime;
             lastValidSampleAt = DateTime.now();
             return;
           }
 
-          int deltaRevolutions = wheelRevolutions - previousWheelRevolutions!;
-          int deltaTicks = wheelEventTime - previousWheelEventTime!;
+          int deltaRevolutions = crankRevolutions - previousCrankRevolutions!;
+          int deltaTicks = crankEventTime - previousCrankEventTime!;
 
           if (deltaRevolutions < 0) {
-            deltaRevolutions += 0x100000000;
+            deltaRevolutions += 0x10000;
           }
           if (deltaTicks < 0) {
             deltaTicks += 0x10000;
           }
 
-          previousWheelRevolutions = wheelRevolutions;
-          previousWheelEventTime = wheelEventTime;
+          previousCrankRevolutions = crankRevolutions;
+          previousCrankEventTime = crankEventTime;
 
           if (deltaTicks <= 0 || deltaRevolutions <= 0) {
             return;
           }
 
-          final seconds = deltaTicks / 1024.0;
-          final wheelCircumferenceMm = _settingsService
-              .getCurrentSettings()
-              .devicesSettings
-              .wheelCircumference
-              .toDouble();
-
-          final meters = deltaRevolutions * (wheelCircumferenceMm / 1000.0);
-          final speedKph = (meters / seconds) * 3.6;
-
-          if (!speedKph.isFinite) {
+          final rpm = deltaRevolutions * 60 * 1024 / deltaTicks;
+          if (!rpm.isFinite) {
             return;
           }
 
           lastValidSampleAt = DateTime.now();
-          if (speedKph <= 0.5) {
+          if (rpm <= 0.5) {
             // Ignore low/invalid spikes; if telemetry goes silent while connected, the
-            // watchdog below will emit 0.0 after the timeout.
+            // watchdog below will emit 0 after the timeout.
             return;
           }
 
           lastEmittedWasZero = false;
-          controller.add(speedKph);
+          controller.add(rpm.round());
         });
 
     final watchdog = Timer.periodic(const Duration(milliseconds: 500), (_) {
@@ -121,7 +126,7 @@ class BleCyclingSpeedMonitor extends BleGenericMonitor {
           const Duration(seconds: 2)) {
         if (!lastEmittedWasZero) {
           lastEmittedWasZero = true;
-          controller.add(0.0);
+          controller.add(0);
         }
       }
     });

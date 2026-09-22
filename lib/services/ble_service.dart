@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:sqot/models/ble_cycling_cadence_monitor.dart';
-import 'package:sqot/models/ble_cycling_speed_monitor.dart';
-import 'package:sqot/models/ble_generic_monitor.dart';
-import 'package:sqot/models/ble_heartrate_monitor.dart';
+import 'package:sqot/models/monitors/ble_cycling_cadence_monitor.dart';
+import 'package:sqot/models/monitors/ble_cycling_speed_monitor.dart';
+import 'package:sqot/models/monitors/ble_generic_monitor.dart';
+import 'package:sqot/models/monitors/ble_heartrate_monitor.dart';
 import 'package:sqot/models/device.dart';
 import 'package:sqot/models/device_type.dart';
 import 'package:universal_ble/universal_ble.dart';

@@ -20,6 +20,8 @@ class _SettingsPageState extends State<SettingsPage> {
   final TextEditingController _tokenController = TextEditingController();
   final TextEditingController _wheelCircumferenceController =
       TextEditingController();
+  final TextEditingController _statisticsWindowMinutesController =
+      TextEditingController();
 
   bool _isLoading = true;
   bool _isSavingInflux = false;
@@ -38,6 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _bucketController.dispose();
     _tokenController.dispose();
     _wheelCircumferenceController.dispose();
+    _statisticsWindowMinutesController.dispose();
     super.dispose();
   }
 
@@ -55,6 +58,10 @@ class _SettingsPageState extends State<SettingsPage> {
     _wheelCircumferenceController.text = currentSettings
         .devicesSettings
         .wheelCircumference
+        .toString();
+    _statisticsWindowMinutesController.text = currentSettings
+        .devicesSettings
+        .statisticsWindowMinutes
         .toString();
 
     if (!mounted) {
@@ -197,6 +204,32 @@ class _SettingsPageState extends State<SettingsPage> {
     Get.snackbar(
       'Devices settings updated',
       'Wheel circumference saved as $parsedValue mm.',
+    );
+  }
+
+  Future<void> _saveStatisticsWindowMinutes() async {
+    _clearFocus();
+
+    final rawValue = _statisticsWindowMinutesController.text.trim();
+    final parsedValue = int.tryParse(rawValue);
+
+    if (parsedValue == null || parsedValue <= 0) {
+      Get.snackbar(
+        'Invalid statistics window',
+        'Please enter a positive integer value in minutes.',
+      );
+      return;
+    }
+
+    await _settingsService.updateSetting(statisticsWindowMinutes: parsedValue);
+
+    if (!mounted) {
+      return;
+    }
+
+    Get.snackbar(
+      'Devices settings updated',
+      'Statistics window saved as $parsedValue minute(s).',
     );
   }
 
@@ -370,14 +403,37 @@ class _SettingsPageState extends State<SettingsPage> {
               helperText: 'Use the tire circumference in millimeters',
             ),
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _saveWheelCircumference,
-              icon: const Icon(Icons.save_outlined),
-              label: const Text('Save wheel circumference'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _statisticsWindowMinutesController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: false),
+            onTapOutside: (_) => _clearFocus(),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: 'Statistics window (minutes)',
+              hintText: 'e.g. 5',
+              helperText: 'Window size used for last X minutes average streams',
             ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _saveWheelCircumference,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Save wheel size'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _saveStatisticsWindowMinutes,
+                  icon: const Icon(Icons.timer_outlined),
+                  label: const Text('Save stats window'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

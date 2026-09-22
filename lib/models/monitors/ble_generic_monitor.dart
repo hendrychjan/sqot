@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:universal_ble/universal_ble.dart';
 
@@ -25,8 +26,6 @@ abstract class BleGenericMonitor {
       signalStrengthStream = _createSignalStrengthStream(
         bleDevice.deviceId,
       ).asBroadcastStream();
-
-  Stream<Map<String, Object?>> get metricsStream;
 
   Future<void> connect() async {
     if (_isConnected) {
@@ -138,5 +137,122 @@ abstract class BleGenericMonitor {
 
       await Future<void>.delayed(_telemetryPollInterval);
     }
+  }
+
+  static Stream<double> createRunningMaxStream(Stream<num> source) {
+    final controller = StreamController<double>.broadcast();
+    double? maxValue;
+
+    final subscription = source.listen(
+      (value) {
+        final sample = value.toDouble();
+        if (!sample.isFinite) {
+          return;
+        }
+
+        if (maxValue == null || sample > maxValue!) {
+          maxValue = sample;
+        }
+
+        controller.add(maxValue!);
+      },
+      onError: controller.addError,
+      onDone: () {
+        controller.close();
+      },
+    );
+
+    controller.onCancel = () async {
+      await subscription.cancel();
+    };
+
+    return controller.stream;
+  }
+
+  static Stream<double> createRunningAverageStream(Stream<num> source) {
+    final controller = StreamController<double>.broadcast();
+    double sum = 0;
+    int count = 0;
+
+    final subscription = source.listen(
+      (value) {
+        final sample = value.toDouble();
+        if (!sample.isFinite) {
+          return;
+        }
+
+        sum += sample;
+        count += 1;
+        controller.add(sum / count);
+      },
+      onError: controller.addError,
+      onDone: () {
+        controller.close();
+      },
+    );
+
+    controller.onCancel = () async {
+      await subscription.cancel();
+    };
+
+    return controller.stream;
+  }
+
+  static Stream<double> createWindowAverageStream(
+    Stream<num> source,
+    Duration Function() windowDurationProvider,
+  ) {
+    final controller = StreamController<double>.broadcast();
+    final samples = Queue<({DateTime timestamp, double value})>();
+
+    Duration readWindowDuration() {
+      final duration = windowDurationProvider();
+      if (duration <= Duration.zero) {
+        return const Duration(minutes: 1);
+      }
+
+      return duration;
+    }
+
+    void trimSamples(DateTime now, Duration windowDuration) {
+      final cutoff = now.subtract(windowDuration);
+      while (samples.isNotEmpty && samples.first.timestamp.isBefore(cutoff)) {
+        samples.removeFirst();
+      }
+    }
+
+    final subscription = source.listen(
+      (value) {
+        final sample = value.toDouble();
+        if (!sample.isFinite) {
+          return;
+        }
+
+        final now = DateTime.now();
+        final windowDuration = readWindowDuration();
+        samples.add((timestamp: now, value: sample));
+        trimSamples(now, windowDuration);
+
+        if (samples.isEmpty) {
+          return;
+        }
+
+        final windowSum = samples.fold<double>(
+          0,
+          (sum, current) => sum + current.value,
+        );
+        controller.add(windowSum / samples.length);
+      },
+      onError: controller.addError,
+      onDone: () {
+        controller.close();
+      },
+    );
+
+    controller.onCancel = () async {
+      await subscription.cancel();
+    };
+
+    return controller.stream;
   }
 }

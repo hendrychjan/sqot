@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:sqot/models/ble_generic_monitor.dart';
+import 'package:sqot/models/monitors/ble_generic_monitor.dart';
+import 'package:sqot/services/settings_service.dart';
 import 'package:universal_ble/universal_ble.dart';
 
 class BleHeartrateMonitor extends BleGenericMonitor {
@@ -9,14 +10,29 @@ class BleHeartrateMonitor extends BleGenericMonitor {
 
   BleHeartrateMonitor({required super.bleDevice});
 
+  final SettingsService _settingsService = SettingsService.instance;
+
   late final Stream<int> bpmStream = UniversalBle.characteristicValueStream(
     bleDevice.deviceId,
     _characteristicUuid,
   ).map(_parseHeartRateBpm).asBroadcastStream();
 
-  @override
-  Stream<Map<String, Object?>> get metricsStream =>
-      bpmStream.map((bpm) => {'Heart rate': bpm});
+  late final Stream<double> maxBpmStream =
+      BleGenericMonitor.createRunningMaxStream(bpmStream).asBroadcastStream();
+  late final Stream<double> averageBpmStream =
+      BleGenericMonitor.createRunningAverageStream(
+        bpmStream,
+      ).asBroadcastStream();
+  late final Stream<double> windowAverageBpmStream =
+      BleGenericMonitor.createWindowAverageStream(
+        bpmStream,
+        () => Duration(
+          minutes: _settingsService
+              .getCurrentSettings()
+              .devicesSettings
+              .statisticsWindowMinutes,
+        ),
+      ).asBroadcastStream();
 
   @override
   Future<void> onStartListening() {

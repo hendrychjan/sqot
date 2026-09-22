@@ -5,10 +5,10 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqot/models/device.dart';
 import 'package:sqot/models/device_type.dart';
-import 'package:sqot/models/devices_settings.dart';
-import 'package:sqot/models/settings.dart';
-import 'package:sqot/models/influx_settings.dart';
-import 'package:sqot/models/theme_settings.dart';
+import 'package:sqot/models/settings/devices_settings.dart';
+import 'package:sqot/models/settings/settings.dart';
+import 'package:sqot/models/settings/influx_settings.dart';
+import 'package:sqot/models/settings/theme_settings.dart';
 
 class SettingsService extends GetxService {
   SettingsService._();
@@ -21,6 +21,8 @@ class SettingsService extends GetxService {
   static const String _keyInfluxBucket = "influx_bucket";
   static const String _keyInfluxToken = "influx_token";
   static const String _keyWheelCircumference = "devices_wheel_circumference";
+  static const String _keyStatisticsWindowMinutes =
+      "devices_statistics_window_minutes";
   static const String _keyBaseDevice = "devices_";
 
   ThemeSettings _themeSettings = ThemeSettings(mode: ThemeMode.system);
@@ -32,6 +34,7 @@ class SettingsService extends GetxService {
   );
   DevicesSettings _devicesSettings = DevicesSettings(
     wheelCircumference: DevicesSettings.defaultWheelCircumference,
+    statisticsWindowMinutes: DevicesSettings.defaultStatisticsWindowMinutes,
   );
 
   late SharedPreferences _prefs;
@@ -63,6 +66,9 @@ class SettingsService extends GetxService {
       wheelCircumference:
           _prefs.getInt(_keyWheelCircumference) ??
           DevicesSettings.defaultWheelCircumference,
+      statisticsWindowMinutes:
+          _prefs.getInt(_keyStatisticsWindowMinutes) ??
+          DevicesSettings.defaultStatisticsWindowMinutes,
     );
     for (final type in DeviceType.values) {
       final deviceRaw = _prefs.getString(_buildKeyByDeviceType(type));
@@ -107,6 +113,7 @@ class SettingsService extends GetxService {
     String? influxBucket,
     String? influxToken,
     int? wheelCircumference,
+    int? statisticsWindowMinutes,
     (DeviceType, Device?)? newDevice,
   }) async {
     assert(_initialized);
@@ -135,6 +142,10 @@ class SettingsService extends GetxService {
     if (wheelCircumference != null) {
       _devicesSettings.wheelCircumference = wheelCircumference;
       await _prefs.setInt(_keyWheelCircumference, wheelCircumference);
+    }
+    if (statisticsWindowMinutes != null) {
+      _devicesSettings.statisticsWindowMinutes = statisticsWindowMinutes;
+      await _prefs.setInt(_keyStatisticsWindowMinutes, statisticsWindowMinutes);
     }
     if (newDevice != null) {
       final newDeviceType = newDevice.$1;
