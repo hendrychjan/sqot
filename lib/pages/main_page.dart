@@ -1,25 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sqot/components/shortcut_card.dart';
-import 'package:sqot/models/training_type.dart';
-import 'package:sqot/pages/doctor_appointments_page.dart';
 import 'package:sqot/pages/devices_page.dart';
+import 'package:sqot/pages/doctor_appointments_page.dart';
 import 'package:sqot/pages/health_indicators_diary_page.dart';
-import 'package:sqot/pages/session_page.dart';
+import 'package:sqot/pages/session_page.dart' as session_page;
 import 'package:sqot/pages/settings_page.dart';
-import 'package:sqot/pages/stats_page.dart';
-import 'package:sqot/pages/womens_cycle_page.dart';
-import 'package:sqot/services/settings_service.dart';
+import 'package:sqot/pages/stats_page.dart' as stats_page;
 
-enum _MainSection {
-  home,
-  training,
-  devices,
-  womensCycle,
-  doctorAppointments,
-  healthDiary,
-  settings,
-}
+enum _MainSection { home, training, doctorAppointments, healthDiary, settings }
 
 extension _MainSectionX on _MainSection {
   String get title {
@@ -28,10 +17,6 @@ extension _MainSectionX on _MainSection {
         return 'Home';
       case _MainSection.training:
         return 'Training';
-      case _MainSection.devices:
-        return 'Devices';
-      case _MainSection.womensCycle:
-        return "Woman's Cycle";
       case _MainSection.doctorAppointments:
         return 'Doctor Appointments';
       case _MainSection.healthDiary:
@@ -47,10 +32,6 @@ extension _MainSectionX on _MainSection {
         return Icons.home_outlined;
       case _MainSection.training:
         return Icons.directions_bike_outlined;
-      case _MainSection.devices:
-        return Icons.bluetooth_outlined;
-      case _MainSection.womensCycle:
-        return Icons.calendar_month_outlined;
       case _MainSection.doctorAppointments:
         return Icons.medical_services_outlined;
       case _MainSection.healthDiary:
@@ -70,14 +51,21 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   _MainSection _currentSection = _MainSection.home;
+  _TrainingSection _currentTrainingSection = _TrainingSection.session;
 
   void _activateSection(_MainSection section) {
+    FocusScope.of(context).unfocus();
     setState(() {
       _currentSection = section;
     });
   }
 
   int get _currentIndex => _MainSection.values.indexOf(_currentSection);
+
+  bool get _showSessionPreviewToggle {
+    return _currentSection == _MainSection.training &&
+        _currentTrainingSection == _TrainingSection.session;
+  }
 
   Widget _buildDrawer(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -120,11 +108,6 @@ class _MainPageState extends State<MainPage> {
             ),
             _buildDrawerItem(
               context,
-              section: _MainSection.womensCycle,
-              onTap: () => _activateSection(_MainSection.womensCycle),
-            ),
-            _buildDrawerItem(
-              context,
               section: _MainSection.doctorAppointments,
               onTap: () => _activateSection(_MainSection.doctorAppointments),
             ),
@@ -132,11 +115,6 @@ class _MainPageState extends State<MainPage> {
               context,
               section: _MainSection.healthDiary,
               onTap: () => _activateSection(_MainSection.healthDiary),
-            ),
-            _buildDrawerItem(
-              context,
-              section: _MainSection.devices,
-              onTap: () => _activateSection(_MainSection.devices),
             ),
             _buildDrawerItem(
               context,
@@ -161,6 +139,7 @@ class _MainPageState extends State<MainPage> {
       title: Text(section.title),
       selected: isSelected,
       onTap: () {
+        FocusScope.of(context).unfocus();
         Navigator.of(context).pop();
         onTap();
       },
@@ -183,35 +162,20 @@ class _MainPageState extends State<MainPage> {
                   onTap: () => _activateSection(_MainSection.training),
                 ),
                 ShortcutCard(
-                  icon: const Icon(Icons.calendar_month_outlined),
-                  title: "Woman's Cycle",
-                  onTap: () => _activateSection(_MainSection.womensCycle),
+                  icon: const Icon(Icons.medical_services_outlined),
+                  title: 'Appointments',
+                  onTap: () =>
+                      _activateSection(_MainSection.doctorAppointments),
                 ),
               ],
             ),
             Row(
               spacing: 10,
               children: [
-                ShortcutCard(
-                  icon: const Icon(Icons.medical_services_outlined),
-                  title: 'Doctor Appointments',
-                  onTap: () =>
-                      _activateSection(_MainSection.doctorAppointments),
-                ),
                 ShortcutCard(
                   icon: const Icon(Icons.sticky_note_2_outlined),
                   title: 'Health Diary',
                   onTap: () => _activateSection(_MainSection.healthDiary),
-                ),
-              ],
-            ),
-            Row(
-              spacing: 10,
-              children: [
-                ShortcutCard(
-                  icon: const Icon(Icons.bluetooth_outlined),
-                  title: 'Devices',
-                  onTap: () => _activateSection(_MainSection.devices),
                 ),
                 ShortcutCard(
                   icon: const Icon(Icons.settings_outlined),
@@ -254,18 +218,62 @@ class _MainPageState extends State<MainPage> {
           backgroundColor: chromeColor,
           surfaceTintColor: chromeColor,
           title: Text(_currentSection.title),
+          actions: [
+            if (_showSessionPreviewToggle)
+              ValueListenableBuilder<bool>(
+                valueListenable: session_page.sessionRunningNotifier,
+                builder: (context, isSessionRunning, child) {
+                  if (isSessionRunning) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return ValueListenableBuilder<bool>(
+                    valueListenable:
+                        session_page.sessionLayoutPreviewVisibleNotifier,
+                    builder: (context, showPreview, child) {
+                      return IconButton(
+                        tooltip: showPreview
+                            ? 'Hide session layout preview'
+                            : 'Show session layout preview',
+                        onPressed: () {
+                          session_page
+                                  .sessionLayoutPreviewVisibleNotifier
+                                  .value =
+                              !showPreview;
+                        },
+                        icon: Icon(
+                          showPreview
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+          ],
         ),
         drawer: _buildDrawer(context),
         body: IndexedStack(
           index: _currentIndex,
           children: [
             _buildHome(),
-            const TrainingPage(),
-            const DevicesPage(),
-            const WomensCyclePage(),
+            TrainingPage(
+              onSectionIndexChanged: (index) {
+                final section = _TrainingSection.values[index];
+                if (_currentTrainingSection == section || !mounted) {
+                  return;
+                }
+                setState(() {
+                  _currentTrainingSection = section;
+                });
+              },
+            ),
             const DoctorAppointmentsPage(),
             const HealthIndicatorsDiaryPage(),
-            const SettingsPage(),
+            const DevicesSettingsPage(
+              initialSection: DeviceSettingsSection.settings,
+            ),
           ],
         ),
       ),
@@ -273,7 +281,25 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
-enum _TrainingSection { session, stats, trainingTypes }
+class TrainingSessionPage extends StatelessWidget {
+  const TrainingSessionPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const session_page.SessionPage();
+  }
+}
+
+class TrainingStatsPage extends StatelessWidget {
+  const TrainingStatsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const stats_page.StatsPage();
+  }
+}
+
+enum _TrainingSection { session, stats }
 
 extension _TrainingSectionX on _TrainingSection {
   String get title {
@@ -282,8 +308,6 @@ extension _TrainingSectionX on _TrainingSection {
         return 'Session';
       case _TrainingSection.stats:
         return 'Stats';
-      case _TrainingSection.trainingTypes:
-        return 'Training types';
     }
   }
 
@@ -293,392 +317,47 @@ extension _TrainingSectionX on _TrainingSection {
         return Icons.directions_bike_outlined;
       case _TrainingSection.stats:
         return Icons.bar_chart_outlined;
-      case _TrainingSection.trainingTypes:
-        return Icons.category_outlined;
     }
   }
 }
 
 class TrainingPage extends StatefulWidget {
-  const TrainingPage({super.key});
+  final ValueChanged<int>? onSectionIndexChanged;
+
+  const TrainingPage({super.key, this.onSectionIndexChanged});
 
   @override
   State<TrainingPage> createState() => _TrainingPageState();
 }
 
 class _TrainingPageState extends State<TrainingPage> {
-  final SettingsService _settingsService = SettingsService.instance;
-
   _TrainingSection _currentSection = _TrainingSection.session;
-  bool _isTrainingTypesLoading = true;
-  List<TrainingType> _trainingTypes = <TrainingType>[];
 
   @override
   void initState() {
     super.initState();
-    _loadTrainingTypes();
+    widget.onSectionIndexChanged?.call(_currentIndex);
   }
 
   void _activateSection(_TrainingSection section) {
     setState(() {
       _currentSection = section;
     });
+    widget.onSectionIndexChanged?.call(_currentIndex);
   }
 
   int get _currentIndex => _TrainingSection.values.indexOf(_currentSection);
 
-  Future<void> _loadTrainingTypes() async {
-    if (!_settingsService.isInitialized) {
-      await _settingsService.loadSettings();
-    }
-
-    final settings = _settingsService.getCurrentSettings();
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _trainingTypes = settings.trainingTypes;
-      _isTrainingTypesLoading = false;
-    });
-  }
-
-  Future<void> _showAddTrainingTypeDialog() async {
-    final titleController = TextEditingController();
-    bool usesHeartrateMonitor = false;
-    bool usesCyclingSpeedMonitor = false;
-    bool usesCyclingCadenceMonitor = false;
-    String? titleError;
-
-    final createdType = await showDialog<TrainingType>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Add training type'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        labelText: 'Title',
-                        hintText: 'e.g. Intervals',
-                        errorText: titleError,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SwitchListTile(
-                      value: usesHeartrateMonitor,
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Use heartrate monitor'),
-                      onChanged: (value) {
-                        setDialogState(() {
-                          usesHeartrateMonitor = value;
-                        });
-                      },
-                    ),
-                    SwitchListTile(
-                      value: usesCyclingSpeedMonitor,
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Use cycling speed monitor'),
-                      onChanged: (value) {
-                        setDialogState(() {
-                          usesCyclingSpeedMonitor = value;
-                        });
-                      },
-                    ),
-                    SwitchListTile(
-                      value: usesCyclingCadenceMonitor,
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Use cycling cadence monitor'),
-                      onChanged: (value) {
-                        setDialogState(() {
-                          usesCyclingCadenceMonitor = value;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final title = titleController.text.trim();
-                    if (title.isEmpty) {
-                      setDialogState(() {
-                        titleError = 'Title is required.';
-                      });
-                      return;
-                    }
-
-                    Navigator.of(context).pop(
-                      TrainingType(
-                        id: DateTime.now().microsecondsSinceEpoch.toString(),
-                        title: title,
-                        usesHeartrateMonitor: usesHeartrateMonitor,
-                        usesCyclingSpeedMonitor: usesCyclingSpeedMonitor,
-                        usesCyclingCadenceMonitor: usesCyclingCadenceMonitor,
-                      ),
-                    );
-                  },
-                  child: const Text('Add'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    titleController.dispose();
-
-    if (createdType == null) {
-      return;
-    }
-
-    await _settingsService.updateSetting(newTrainingType: createdType);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _trainingTypes = [..._trainingTypes, createdType];
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Training type "${createdType.title}" added.')),
-    );
-  }
-
-  Future<void> _renameTrainingType(TrainingType trainingType) async {
-    final controller = TextEditingController(text: trainingType.title);
-    String? titleError;
-
-    final updatedTitle = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Rename training type'),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: InputDecoration(
-                  border: const OutlineInputBorder(),
-                  labelText: 'Title',
-                  errorText: titleError,
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final value = controller.text.trim();
-                    if (value.isEmpty) {
-                      setDialogState(() {
-                        titleError = 'Title is required.';
-                      });
-                      return;
-                    }
-                    Navigator.of(context).pop(value);
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    controller.dispose();
-
-    if (updatedTitle == null || updatedTitle == trainingType.title) {
-      return;
-    }
-
-    final updatedTrainingType = TrainingType(
-      id: trainingType.id,
-      title: updatedTitle,
-      usesHeartrateMonitor: trainingType.usesHeartrateMonitor,
-      usesCyclingSpeedMonitor: trainingType.usesCyclingSpeedMonitor,
-      usesCyclingCadenceMonitor: trainingType.usesCyclingCadenceMonitor,
-    );
-
-    await _settingsService.updateTrainingType(updatedTrainingType);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _trainingTypes = _trainingTypes.map((type) {
-        return type.id == updatedTrainingType.id ? updatedTrainingType : type;
-      }).toList();
-    });
-  }
-
-  Future<void> _deleteTrainingType(TrainingType trainingType) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete training type'),
-          content: Text('Delete "${trainingType.title}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    await _settingsService.deleteTrainingType(trainingType.id);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _trainingTypes = _trainingTypes
-          .where((type) => type.id != trainingType.id)
-          .toList();
-    });
-  }
-
-  List<String> _buildMonitorTags(TrainingType trainingType) {
-    final tags = <String>[];
-    if (trainingType.usesHeartrateMonitor) {
-      tags.add('Heartrate');
-    }
-    if (trainingType.usesCyclingSpeedMonitor) {
-      tags.add('Speed');
-    }
-    if (trainingType.usesCyclingCadenceMonitor) {
-      tags.add('Cadence');
-    }
-    if (tags.isEmpty) {
-      tags.add('No monitors');
-    }
-    return tags;
-  }
-
-  Widget _buildTrainingTypesPage(BuildContext context) {
-    if (_isTrainingTypesLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_trainingTypes.isEmpty) {
-      return Center(
-        child: Text(
-          'No training types yet. Tap + to add one.',
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-      );
-    }
-
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: _trainingTypes.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final trainingType = _trainingTypes[index];
-        final tags = _buildMonitorTags(trainingType);
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: colorScheme.surfaceContainerLow,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                trainingType.title,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'rename':
-                        _renameTrainingType(trainingType);
-                        break;
-                      case 'delete':
-                        _deleteTrainingType(trainingType);
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'rename', child: Text('Rename')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final tag in tags)
-                    Chip(
-                      label: Text(tag),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       body: IndexedStack(
         index: _currentIndex,
-        children: [
-          const SessionPage(),
-          const StatsPage(),
-          _buildTrainingTypesPage(context),
-        ],
+        children: const [TrainingSessionPage(), TrainingStatsPage()],
       ),
-      floatingActionButton: _currentSection == _TrainingSection.trainingTypes
-          ? FloatingActionButton(
-              onPressed: _showAddTrainingTypeDialog,
-              child: const Icon(Icons.add),
-            )
-          : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
@@ -686,6 +365,88 @@ class _TrainingPageState extends State<TrainingPage> {
         },
         destinations: [
           for (final section in _TrainingSection.values)
+            NavigationDestination(
+              icon: Icon(section.icon),
+              label: section.title,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class DevicesSettingsPage extends StatefulWidget {
+  final DeviceSettingsSection initialSection;
+
+  const DevicesSettingsPage({super.key, required this.initialSection});
+
+  @override
+  State<DevicesSettingsPage> createState() => _DevicesSettingsPageState();
+}
+
+enum DeviceSettingsSection { devices, settings }
+
+extension DeviceSettingsSectionX on DeviceSettingsSection {
+  String get title {
+    switch (this) {
+      case DeviceSettingsSection.devices:
+        return 'Devices';
+      case DeviceSettingsSection.settings:
+        return 'Settings';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case DeviceSettingsSection.devices:
+        return Icons.bluetooth_outlined;
+      case DeviceSettingsSection.settings:
+        return Icons.settings_outlined;
+    }
+  }
+}
+
+class _DevicesSettingsPageState extends State<DevicesSettingsPage> {
+  late DeviceSettingsSection _currentSection;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentSection = widget.initialSection;
+  }
+
+  @override
+  void didUpdateWidget(covariant DevicesSettingsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialSection != widget.initialSection && mounted) {
+      setState(() {
+        _currentSection = widget.initialSection;
+      });
+    }
+  }
+
+  int get _currentIndex =>
+      DeviceSettingsSection.values.indexOf(_currentSection);
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: const [DevicesPage(), SettingsPage()],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentSection = DeviceSettingsSection.values[index];
+          });
+        },
+        destinations: [
+          for (final section in DeviceSettingsSection.values)
             NavigationDestination(
               icon: Icon(section.icon),
               label: section.title,

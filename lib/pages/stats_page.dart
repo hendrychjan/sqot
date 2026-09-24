@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:sqot/components/app_snackbar.dart';
 import 'package:sqot/models/training_session.dart';
 import 'package:sqot/services/settings_service.dart';
 
@@ -61,15 +61,18 @@ class _StatsPageState extends State<StatsPage> {
   }
 
   Future<void> _renameSession(TrainingSession session) async {
-    final controller = TextEditingController(text: session.title ?? '');
+    String updatedTitle = session.title ?? '';
     final result = await showDialog<String?>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Edit session title'),
-          content: TextField(
-            controller: controller,
+          content: TextFormField(
             autofocus: true,
+            initialValue: updatedTitle,
+            onChanged: (value) {
+              updatedTitle = value;
+            },
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'Optional title',
@@ -77,19 +80,23 @@ class _StatsPageState extends State<StatsPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                FocusScope.of(context).unfocus();
+                Navigator.of(context).pop();
+              },
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(controller.text.trim()),
+              onPressed: () {
+                FocusScope.of(context).unfocus();
+                Navigator.of(context).pop(updatedTitle.trim());
+              },
               child: const Text('Save'),
             ),
           ],
         );
       },
     );
-    controller.dispose();
 
     if (result == null) {
       return;
@@ -142,7 +149,7 @@ class _StatsPageState extends State<StatsPage> {
       return;
     }
 
-    Get.snackbar('Session deleted', 'The recorded session was removed.');
+    AppSnackbar.show('Session deleted', 'The recorded session was removed.');
   }
 
   @override
@@ -176,28 +183,33 @@ class _StatsPageState extends State<StatsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  session.title ?? session.trainingTypeTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: PopupMenuButton<String>(
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'rename':
-                          _renameSession(session);
-                          break;
-                        case 'delete':
-                          _deleteSession(session);
-                          break;
-                      }
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'rename', child: Text('Rename')),
-                      PopupMenuItem(value: 'delete', child: Text('Delete')),
-                    ],
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      session.title ?? session.trainingTypeTitle,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: PopupMenuButton<String>(
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'rename':
+                              _renameSession(session);
+                              break;
+                            case 'delete':
+                              _deleteSession(session);
+                              break;
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 'rename', child: Text('Rename')),
+                          PopupMenuItem(value: 'delete', child: Text('Delete')),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Text('Training type: ${session.trainingTypeTitle}'),

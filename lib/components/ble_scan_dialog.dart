@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sqot/components/app_snackbar.dart';
 import 'package:sqot/models/device.dart';
 import 'package:sqot/models/device_type.dart';
 import 'package:sqot/services/ble_service.dart' as app_ble;
@@ -75,7 +76,7 @@ class _BleScanDialogState extends State<BleScanDialog> {
         _isScanning = false;
       });
 
-      Get.snackbar('Scanning failed', e.toString());
+      AppSnackbar.show('Scanning failed', e.toString());
     }
   }
 

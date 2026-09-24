@@ -26,6 +26,8 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Sqot uses your location during training sessions to show your live position on the map.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

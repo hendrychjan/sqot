@@ -10,12 +10,13 @@ import 'package:sqot/models/settings/settings.dart';
 import 'package:sqot/models/settings/influx_settings.dart';
 import 'package:sqot/models/settings/theme_settings.dart';
 import 'package:sqot/models/training_session.dart';
-import 'package:sqot/models/training_type.dart';
 
 class SettingsService extends GetxService {
   SettingsService._();
   factory SettingsService() => instance;
   static final SettingsService instance = SettingsService._();
+  static final ValueNotifier<int> devicesSettingsRevisionNotifier =
+      ValueNotifier<int>(0);
 
   static const String _keyThemeMode = "theme_mode";
   static const String _keyInfluxUrl = "influx_url";
@@ -25,7 +26,12 @@ class SettingsService extends GetxService {
   static const String _keyWheelCircumference = "devices_wheel_circumference";
   static const String _keyStatisticsWindowMinutes =
       "devices_statistics_window_minutes";
-  static const String _keyTrainingTypes = "training_types";
+  static const String _keyAutoMapRotationEnabled =
+      "devices_auto_map_rotation_enabled";
+  static const String _keyImportedRouteFileName =
+      "devices_imported_route_file_name";
+  static const String _keyImportedRouteGpxContent =
+      "devices_imported_route_gpx_content";
   static const String _keySavedSessions = "saved_training_sessions";
   static const String _keyBaseDevice = "devices_";
 
@@ -39,8 +45,8 @@ class SettingsService extends GetxService {
   DevicesSettings _devicesSettings = DevicesSettings(
     wheelCircumference: DevicesSettings.defaultWheelCircumference,
     statisticsWindowMinutes: DevicesSettings.defaultStatisticsWindowMinutes,
+    autoMapRotationEnabled: DevicesSettings.defaultAutoMapRotationEnabled,
   );
-  List<TrainingType> _trainingTypes = <TrainingType>[];
 
   late SharedPreferences _prefs;
 
@@ -74,6 +80,11 @@ class SettingsService extends GetxService {
       statisticsWindowMinutes:
           _prefs.getInt(_keyStatisticsWindowMinutes) ??
           DevicesSettings.defaultStatisticsWindowMinutes,
+      autoMapRotationEnabled:
+          _prefs.getBool(_keyAutoMapRotationEnabled) ??
+          DevicesSettings.defaultAutoMapRotationEnabled,
+      importedRouteFileName: _prefs.getString(_keyImportedRouteFileName),
+      importedRouteGpxContent: _prefs.getString(_keyImportedRouteGpxContent),
     );
     for (final type in DeviceType.values) {
       final deviceRaw = _prefs.getString(_buildKeyByDeviceType(type));
@@ -81,11 +92,6 @@ class SettingsService extends GetxService {
           ? null
           : Device.fromJson(jsonDecode(deviceRaw));
     }
-
-    final savedTrainingTypes = _prefs.getStringList(_keyTrainingTypes);
-    _trainingTypes = (savedTrainingTypes ?? <String>[])
-        .map((rawType) => TrainingType.fromJson(jsonDecode(rawType)))
-        .toList();
 
     _initialized = true;
   }
@@ -100,9 +106,6 @@ class SettingsService extends GetxService {
         token: _influxSettings.token,
       ),
       devicesSettings: _devicesSettings,
-      trainingTypes: _trainingTypes
-          .map((type) => TrainingType.fromJson(type.toJson()))
-          .toList(),
     );
   }
 
@@ -127,10 +130,11 @@ class SettingsService extends GetxService {
     String? influxToken,
     int? wheelCircumference,
     int? statisticsWindowMinutes,
-    TrainingType? newTrainingType,
+    bool? autoMapRotationEnabled,
     (DeviceType, Device?)? newDevice,
   }) async {
     assert(_initialized);
+    var devicesSettingsChanged = false;
 
     if (themeMode != null && _themeSettings.mode != themeMode) {
       _themeSettings.mode = themeMode;
@@ -156,17 +160,17 @@ class SettingsService extends GetxService {
     if (wheelCircumference != null) {
       _devicesSettings.wheelCircumference = wheelCircumference;
       await _prefs.setInt(_keyWheelCircumference, wheelCircumference);
+      devicesSettingsChanged = true;
     }
     if (statisticsWindowMinutes != null) {
       _devicesSettings.statisticsWindowMinutes = statisticsWindowMinutes;
       await _prefs.setInt(_keyStatisticsWindowMinutes, statisticsWindowMinutes);
+      devicesSettingsChanged = true;
     }
-    if (newTrainingType != null) {
-      _trainingTypes.add(newTrainingType);
-      await _prefs.setStringList(
-        _keyTrainingTypes,
-        _trainingTypes.map((type) => jsonEncode(type.toJson())).toList(),
-      );
+    if (autoMapRotationEnabled != null) {
+      _devicesSettings.autoMapRotationEnabled = autoMapRotationEnabled;
+      await _prefs.setBool(_keyAutoMapRotationEnabled, autoMapRotationEnabled);
+      devicesSettingsChanged = true;
     }
     if (newDevice != null) {
       final newDeviceType = newDevice.$1;
@@ -189,6 +193,11 @@ class SettingsService extends GetxService {
         );
         _devicesSettings.devices[newDeviceType] = newDeviceValue;
       }
+      devicesSettingsChanged = true;
+    }
+
+    if (devicesSettingsChanged) {
+      _notifyDevicesSettingsChanged();
     }
   }
 
@@ -200,30 +209,33 @@ class SettingsService extends GetxService {
     await _prefs.setStringList(_keySavedSessions, sessions);
   }
 
-  Future<void> updateTrainingType(TrainingType updatedTrainingType) async {
+  Future<void> saveImportedRoute({
+    required String fileName,
+    required String gpxContent,
+  }) async {
     assert(_initialized);
 
-    _trainingTypes = _trainingTypes.map((type) {
-      return type.id == updatedTrainingType.id ? updatedTrainingType : type;
-    }).toList();
+    _devicesSettings.importedRouteFileName = fileName;
+    _devicesSettings.importedRouteGpxContent = gpxContent;
 
-    await _prefs.setStringList(
-      _keyTrainingTypes,
-      _trainingTypes.map((type) => jsonEncode(type.toJson())).toList(),
-    );
+    await _prefs.setString(_keyImportedRouteFileName, fileName);
+    await _prefs.setString(_keyImportedRouteGpxContent, gpxContent);
+    _notifyDevicesSettingsChanged();
   }
 
-  Future<void> deleteTrainingType(String trainingTypeId) async {
+  Future<void> clearImportedRoute() async {
     assert(_initialized);
 
-    _trainingTypes = _trainingTypes
-        .where((type) => type.id != trainingTypeId)
-        .toList();
+    _devicesSettings.importedRouteFileName = null;
+    _devicesSettings.importedRouteGpxContent = null;
 
-    await _prefs.setStringList(
-      _keyTrainingTypes,
-      _trainingTypes.map((type) => jsonEncode(type.toJson())).toList(),
-    );
+    await _prefs.remove(_keyImportedRouteFileName);
+    await _prefs.remove(_keyImportedRouteGpxContent);
+    _notifyDevicesSettingsChanged();
+  }
+
+  void _notifyDevicesSettingsChanged() {
+    devicesSettingsRevisionNotifier.value++;
   }
 
   List<TrainingSession> getSavedTrainingSessions() {

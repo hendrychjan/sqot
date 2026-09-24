@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sqot/components/app_snackbar.dart';
 import 'package:sqot/models/monitors/ble_cycling_cadence_monitor.dart';
 import 'package:sqot/models/monitors/ble_cycling_speed_monitor.dart';
 import 'package:sqot/models/monitors/ble_generic_monitor.dart';
@@ -319,37 +320,37 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
     if (mounted) {
       setState(() {});
     }
-    Get.snackbar('Recording started', 'Watching $sourceId');
+    AppSnackbar.show('Recording started', 'Watching $sourceId');
   }
 
   Future<bool> _exportToInflux(List<DataPoint> payload) async {
     if (payload.isEmpty) {
-      Get.snackbar('Export to Influx', 'No recorded data to export.');
+      AppSnackbar.show('Export to Influx', 'No recorded data to export.');
       return false;
     }
 
     try {
       await _influxService.writeTopic(payload);
-      Get.snackbar('Export to Influx', 'Export successful.');
+      AppSnackbar.show('Export to Influx', 'Export successful.');
       return true;
     } catch (e) {
-      Get.snackbar('Export to Influx', 'Export failed: $e');
+      AppSnackbar.show('Export to Influx', 'Export failed: $e');
       return false;
     }
   }
 
   Future<bool> _exportToCsv(List<DataPoint> payload) async {
     if (payload.isEmpty) {
-      Get.snackbar('Export to CSV', 'No recorded data to export.');
+      AppSnackbar.show('Export to CSV', 'No recorded data to export.');
       return false;
     }
 
     try {
       await _csvService.exportDataPoints(payload);
-      Get.snackbar('Export to CSV', 'Export successful.');
+      AppSnackbar.show('Export to CSV', 'Export successful.');
       return true;
     } catch (e) {
-      Get.snackbar('Export to CSV', 'Export failed: $e');
+      AppSnackbar.show('Export to CSV', 'Export failed: $e');
       return false;
     }
   }
@@ -481,7 +482,7 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
       case 'discard':
         _recordingsBySource.remove(sourceId);
         setState(() {});
-        Get.snackbar('Recording', 'Data discarded.');
+        AppSnackbar.show('Recording', 'Data discarded.');
         break;
       default:
         // Keep the paused recording available for later export/resume.
@@ -515,7 +516,7 @@ class _DeviceDetailsDialogState extends State<DeviceDetailsDialog> {
     if (mounted) {
       setState(() {});
     }
-    Get.snackbar('Recording resumed', 'Watching ${session.sourceId}');
+    AppSnackbar.show('Recording resumed', 'Watching ${session.sourceId}');
   }
 
   Future<void> _toggleStreamRecording({

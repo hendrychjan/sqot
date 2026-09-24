@@ -8,6 +8,10 @@ class TrainingType {
   bool usesHeartrateMonitor;
   bool usesCyclingSpeedMonitor;
   bool usesCyclingCadenceMonitor;
+  bool? _usesLocationService;
+
+  bool get usesLocationService => _usesLocationService ?? false;
+  set usesLocationService(bool value) => _usesLocationService = value;
 
   BleHeartrateMonitor? heartrateMonitor;
   BleCyclingSpeedMonitor? cyclingSpeedMonitor;
@@ -19,7 +23,8 @@ class TrainingType {
     required this.usesHeartrateMonitor,
     required this.usesCyclingSpeedMonitor,
     required this.usesCyclingCadenceMonitor,
-  });
+    required bool usesLocationService,
+  }) : _usesLocationService = usesLocationService;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -28,6 +33,7 @@ class TrainingType {
       'usesHeartrateMonitor': usesHeartrateMonitor,
       'usesCyclingSpeedMonitor': usesCyclingSpeedMonitor,
       'usesCyclingCadenceMonitor': usesCyclingCadenceMonitor,
+      'usesLocationService': usesLocationService,
     };
   }
 
@@ -40,6 +46,7 @@ class TrainingType {
           (json['usesCyclingSpeedMonitor'] as bool?) ?? false,
       usesCyclingCadenceMonitor:
           (json['usesCyclingCadenceMonitor'] as bool?) ?? false,
+      usesLocationService: (json['usesLocationService'] as bool?) ?? false,
     );
   }
 }
